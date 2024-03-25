@@ -140,28 +140,28 @@ public class LibraryManager {
             statement.setString(3, name);
             statement.setString(4, "");
 
-            statement.executeUpdate();
-            return "200:n";
+            int id = statement.executeUpdate();
+            return "200:n" + ";" + id;
         }
         catch (Exception e) {
             return "400:n";
         }
     }
     public String login(String username, String password) throws SQLException {
-        String sql = "SELECT role, password FROM user where username =?";
+        String sql = "SELECT id, role, password FROM user where username =?";
 
         try (Connection connection = DriverManager.getConnection("jdbc:sqlite:library.db");
         PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, username);
             ResultSet resultSet = statement.executeQuery();
             if (resultSet.next()) {
-                if (resultSet.getString(2).equals(password)) {
-                    return "200:r"+ resultSet.getString(1);
+                if (resultSet.getString(3).equals(password)) {
+                    return "200:n"+ resultSet.getString(2) + ";" + resultSet.getString(1);
                 } else {
-                    return "401:r";
+                    return "401:n";
                 }
             } else {
-                return "400:r";
+                return "404:n";
             }
         } catch (SQLException e) {
             e.printStackTrace();
@@ -199,7 +199,7 @@ public class LibraryManager {
         }
     }
 
-    public void deleteBook(int bookId) throws SQLException {
+    public String deleteBook(int bookId) throws SQLException {
         String sql = "DELETE FROM books WHERE id = ?";
 
 
@@ -208,10 +208,14 @@ public class LibraryManager {
             statement.setInt(1, bookId);
             int rowsDeleted = statement.executeUpdate();
             System.out.println(rowsDeleted + " book(s) deleted.");
+            return "200";
+        }catch(Exception e){
+            e.printStackTrace();
+            return "400";
         }
     }
 
-    public void insertBook(String title, String author, String genre, double price, int quantity, int ownerId) throws SQLException, ClassNotFoundException {
+    public String insertBook(String title, String author, String genre, double price, int quantity, int ownerId) throws SQLException, ClassNotFoundException {
         String sql = "INSERT INTO books (title, author, genre, price, quantity, owner) VALUES (?, ?, ?, ?, ?, ?)";
 
 
@@ -225,10 +229,14 @@ public class LibraryManager {
             statement.setInt(6, ownerId);
             statement.executeUpdate();
             System.out.println("Book inserted successfully!");
+            return "200";
+        }catch(Exception e){
+            e.printStackTrace();
+            return "400";
         }
     }
 
-    public void insertRequest(int bookId, int requesterId, String status) throws SQLException {
+    public String insertRequest(int bookId, int requesterId, String status) throws SQLException {
         String sql = "INSERT INTO requests (book, requester, status) VALUES (?, ?, ?)";
 
 
@@ -239,6 +247,9 @@ public class LibraryManager {
             statement.setString(3, status);
             statement.executeUpdate();
             System.out.println("Request inserted successfully!");
+            return "200";
+        }catch(Exception e){
+            return "500";
         }
     }
 
@@ -267,8 +278,77 @@ public class LibraryManager {
             return String.join("!", result);
         }
     }
+    public String editBookQuantity(int diff, int bookid) throws SQLException {
+        String sql = "UPDATE books SET quantity = ? WHERE id = ?";
+        int quantity = getQuantity(bookid);
+        if(quantity == -1){
+            return "404: Book not found";
+        }else if (diff < 0 && quantity < Math.abs(diff)) {
+            return "400: Not enough books in stock";
+        }
 
-    public void cd () throws SQLException {
+        try (Connection connection = DriverManager.getConnection(DB_URL);
+                 PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setInt(1, diff + quantity);
+            statement.setInt(2, bookid);
+            int rowsUpdated = statement.executeUpdate();
+
+            if (rowsUpdated == 0) {
+                return "404: Book not found";
+            } else {
+                return "200";
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            return "500";
+        }
+    }
+    public String selectAllRequestsForOwnedBooks(int ownerId) throws SQLException {
+        String sql = "SELECT r.id, r.book, r.requester, r.status, b.title " +
+                     "FROM requests r " +
+                     "INNER JOIN books b ON r.book = b.id " +
+                     "WHERE b.owner = ?";
+
+        try (Connection connection = DriverManager.getConnection(DB_URL);
+                 PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setInt(1, ownerId);
+            ResultSet resultSet = statement.executeQuery();
+
+            ArrayList<ArrayList<String>> requests = new ArrayList<>();
+            int j = 0;
+            while (resultSet.next()) {
+                requests.add(new ArrayList<String>());
+                for (int i = 1; i <= 5; i++) {
+                    requests.get(j).add(resultSet.getString(i));
+                }
+                j++;
+            }
+            resultSet.close();
+            ArrayList<String> result = new ArrayList<>();
+            for (int i = 0; i < requests.size(); i++) {
+                result.add(String.join(":", requests.get(i)));
+            }
+
+            return String.join("!", result);
+        }
+    }
+    private int getQuantity(int bookid) throws SQLException {
+        String sql = "SELECT quantity FROM books WHERE id = ?";
+
+        try (Connection connection = DriverManager.getConnection(DB_URL);
+                 PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setInt(1, bookid);
+            ResultSet resultSet = statement.executeQuery();
+
+            if (resultSet.next()) {
+                return resultSet.getInt("quantity");
+            } else {
+                return -1;
+            }
+        }
+    }
+
+    public void viewAllRequests() throws SQLException {
         String sql = "SELECT * FROM requests";
 
 
@@ -284,6 +364,99 @@ public class LibraryManager {
                 System.out.println("-------------------------");
             }
             resultSet.close();
+        }
+    }
+
+    public String selectBookByOwner(int id) throws SQLException {
+        String sql = "SELECT * FROM books where owner = ?";
+
+
+        try (Connection connection = DriverManager.getConnection(DB_URL);
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setInt(1, id);
+            ResultSet resultSet = statement.executeQuery();
+            ArrayList<ArrayList<String>> books = new ArrayList<>();
+            int j = 0;
+            while (resultSet.next()) {
+                books.add(new ArrayList<String>());
+                for(int i =1 ;i <= 6; i++ ){
+                    books.get(j).add(resultSet.getString(i));
+                }
+                j++;
+            }
+            resultSet.close();
+            ArrayList<String> result = new ArrayList<>();
+            for(int i = 0 ;i < books.size(); i++){
+                result.add(String.join(":", books.get(i)));
+            }
+
+            return String.join("!", result);
+        }
+    }
+
+    public String acceptRequest(int requestId) throws SQLException {
+        // 1. Get request details (book ID and requester ID)
+        String sql = "SELECT book, requester FROM requests WHERE id = ?";
+        int bookId = 0;
+        int requesterId = 0;
+        try (Connection connection = DriverManager.getConnection(DB_URL);
+                PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setInt(1, requestId);
+            ResultSet resultSet = statement.executeQuery();
+
+            if (!resultSet.next()) {
+                throw new SQLException("Request not found"); // Handle non-existent request
+            }
+
+            bookId = resultSet.getInt("book");
+            requesterId = resultSet.getInt("requester");
+            resultSet.close();
+
+            // 2. Check if book is available (quantity > 0)
+        }catch(Exception e){
+            e.printStackTrace();
+            return "500";
+        }
+        int currentQuantity = getQuantity(bookId);
+        if (currentQuantity <= 0) {
+            throw new SQLException("Book not available"); // Handle unavailable book
+        }
+
+        sql = "UPDATE books SET owner = ?, quantity = quantity - 1 WHERE id = ?";
+        try (Connection connection = DriverManager.getConnection(DB_URL);
+        PreparedStatement statement = connection.prepareStatement(sql)) {
+            // 3. Update book owner and decrement quantity
+            statement.setInt(1, requesterId);
+            statement.setInt(2, bookId);
+            statement.executeUpdate();
+        }catch(Exception e){
+            e.printStackTrace();
+            return "500";
+        }
+        // 4. Update request status to accepted
+        sql = "UPDATE requests SET status = 'accepted' WHERE id = ?";
+        try (Connection connection = DriverManager.getConnection(DB_URL);
+        PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setInt(1, requestId);
+            statement.executeUpdate();
+
+            System.out.println("Request accepted successfully!");
+            return "200";
+        }catch(Exception e){
+            e.printStackTrace();
+            return "500";
+        }
+    }
+
+    public String rejectRequest(int requestId) throws SQLException {
+        String sql = "UPDATE requests SET status = 'rejected' WHERE id = ?";
+
+        try (Connection connection = DriverManager.getConnection(DB_URL);
+                PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setInt(1, requestId);
+            statement.executeUpdate();
+            System.out.println("Request rejected successfully!");
+            return "200";
         }
     }
 }

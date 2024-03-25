@@ -127,7 +127,7 @@ public class Client {
             }
             System.out.println("Hello, " + username + "!");
             while(true){
-                System.out.print("Welcome to the menu:\n1- browse books\n2- search books\n3- add book\n4- delete book\n5- Submit a request\n6- respond to requests\n7- exit\n- ");
+                System.out.print("Welcome to the menu:\n1- browse books\n2- search books\n3- add book\n4- delete book\n5- browse requests\n6- Submit a request\n7- respond to requests\n8- exit\n- ");
                 choice = scanner.nextLine();
                 client.sendMessage(choice);
                 switch (choice) {
@@ -137,25 +137,107 @@ public class Client {
                     case "2":
                         client.searchBooks(client, scanner);
                         break;
-                    // case "3":
-                    //     client.addBook();
-                    //     break;
-                    // case "4":
-                    //     client.deleteBook();
-                    //     break;
-                    // case "5":
-                    //     client.submitRequest();
-                    //     break;
-                    // case "6":
-                    //     client.respondToRequest();
-                    //     break;
+                    case "3":
+                        client.addBook(client, scanner);
+                        break;
+                    case "4":
+                        client.deleteBook(client, scanner);
+                        break;
+                    case "5":
+                        client.browseRequests(client);
+                        break;
+                    case "6":
+                        client.submitRequest(client, scanner);
+                        break;
                     case "7":
+                        client.respondToRequest(client, scanner);
+                        break;
+                    case "8":
                         System.exit(0);
                 }
 
             }
         } catch (IOException e) {
             e.printStackTrace();
+        }
+    }
+    private void respondToRequest(Client client, Scanner scanner) throws IOException {
+        browseRequests(client);
+        System.out.print("Enter the id of the request: ");
+        int id = Integer.valueOf(scanner.nextLine());
+        client.sendMessage(String.valueOf(id));
+        String status = client.readMessage();
+        if(status.equals("200")){
+            System.out.println("Request responded successfully!\n");
+        }
+        else if(status.equals("400")){
+            System.out.println("Request failed to be responded to\n");
+        }
+    }
+    private void submitRequest(Client client, Scanner scanner) throws IOException {
+        client.browseBooks(client);
+        System.out.print("Enter the id of the Book: ");
+        int id = Integer.valueOf(scanner.nextLine());
+        client.sendMessage(String.valueOf(id));
+        String status = client.readMessage();
+        if(status.equals("200")){
+            System.out.println("Book submitted successfully!\n");
+        }
+        else if(status.equals("500")){
+            System.out.println("Book failed to be submitted\n");
+        }
+
+
+    }
+    private void deleteBook(Client client, Scanner scanner) throws IOException {
+        client.browseBooks(client);
+        System.out.print("Enter the id of the Book: ");
+        int id = Integer.valueOf(scanner.nextLine());
+        client.sendMessage(String.valueOf(id));
+        String status = client.readMessage();
+        if(status.equals("200")){
+            System.out.println("Book deleted successfully!\n");
+        }
+        else if(status.equals("400")){
+            System.out.println("Book failed to be deleted\n");
+        }
+    }
+    private void addBook(Client client, Scanner scanner) throws IOException {
+        System.out.print("Enter book Title: ");
+        String bookTitle = scanner.nextLine();
+
+        System.out.print("Enter book Author: ");
+        String bookAuthor = scanner.nextLine();
+
+        System.out.print("Enter book Genre: ");
+        String genre = scanner.nextLine();
+        Double bookPrice;
+        int bookQuantity;
+        while(true){
+            try{
+
+                System.out.print("Enter book Price: ");
+                bookPrice = Double.valueOf(scanner.nextLine());
+                if(bookPrice <= 0)
+                    throw new IllegalArgumentException();
+                System.out.print("Enter book Quantity: ");
+                bookQuantity = Integer.valueOf(scanner.nextLine());
+                if(bookQuantity <= 0)
+                    throw new IllegalArgumentException();
+                break;
+            }catch(Exception e){
+                System.out.println("Please enter a valid number!");
+                continue;
+            }
+        }
+
+        client.sendMessage(bookTitle + ":" + bookAuthor + ":" + genre + ":" + bookPrice + ":" + bookQuantity);
+        String status = client.readMessage();
+        if(status.equals("200")){
+            System.out.println("Book added successfully!\n");
+        }
+        else if(status.equals("400")){
+            System.out.println("Book failed to be inserted\n");
         }
     }
     private void searchBooks(Client client, Scanner scanner) throws IOException {
@@ -186,6 +268,24 @@ public class Client {
 
         if(recivedString.length() == 0){
             System.out.println("No books are available!");
+            return;
+        }
+        String[] book = recivedString.split("!");
+        for(String i: book){
+            System.out.println();
+            String[] bookStrings = i.split(":");
+            System.out.print(bookStrings[0] + "- ");
+            for(int j = 1;j < bookStrings.length;j++){
+                System.out.print(bookStrings[j]+ " ");
+            }
+        }
+        System.out.println();
+    }
+    private void browseRequests(Client client) throws IOException {
+        String recivedString = client.readMessage();
+
+        if(recivedString.length() == 0){
+            System.out.println("No requests are available!");
             return;
         }
         String[] book = recivedString.split("!");

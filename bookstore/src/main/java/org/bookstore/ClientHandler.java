@@ -16,6 +16,7 @@ public class ClientHandler implements Runnable {
     private BufferedWriter writer;
     private LibraryManager libraryManager;
     private String username;
+    private int userid;
     private Boolean isadmin;
     public ClientHandler(Socket socket){
         try{
@@ -23,6 +24,7 @@ public class ClientHandler implements Runnable {
             reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             writer = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
             username = "";
+            userid = -1;
             libraryManager = new LibraryManager();
         }catch (Exception e){
             closeEverything(socket, reader, writer);
@@ -57,7 +59,8 @@ public class ClientHandler implements Runnable {
                 String Status = libraryManager.login(username, password);
                 if(Status.split(":")[0].equals("200")){
                     this.username = username;
-                    this.isadmin = Status.split(":")[1].equals("ra");
+                    this.isadmin = Status.split(":")[1].split(";")[0].equals("ra");
+                    this.userid = Integer.valueOf(Status.split(";")[1]);
                     authenticated = true;
                     System.out.println(username + "logged in correctly");
                 }
@@ -128,20 +131,24 @@ public class ClientHandler implements Runnable {
                             writer.newLine();
                             writer.flush();
                             break;
-                        // case "3":
-                        //     client.addBook();
-                        //     break;
-                        // case "4":
-                        //     client.deleteBook();
-                        //     break;
-                        // case "5":
-                        //     client.submitRequest();
-                        //     break;
-                        // case "6":
-                        //     client.respondToRequest();
-                        //     break;
+                        case "3":
+                            addBook();
+                            break;
+                        case "4":
+                            deleteBook();
+                            break;
+                        case "5":
+                            browseRequests();
+                            break;
+                        case "6":
+                            submitRequest();
+                            break;
                         case "7":
-                            System.exit(0);
+                            respondToRequest();
+                            break;
+                        case "8":
+                            closeEverything(socket, reader, writer);
+                            break;
                     }
                 }
             }catch(IOException e){
@@ -154,8 +161,51 @@ public class ClientHandler implements Runnable {
                 break;
             }catch(NullPointerException e){
                 System.out.println(username + " has left the server");
+            } catch (NumberFormatException e) {
+                // TODO Auto-generated catch block
+                e.printStackTrace();
+            } catch (ClassNotFoundException e) {
+                // TODO Auto-generated catch block
+                e.printStackTrace();
             }
         }
+    }
+private void respondToRequest() {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'respondToRequest'");
+    }
+private void browseRequests() throws IOException, SQLException {
+    writer.write(libraryManager.selectAllRequestsForOwnedBooks(userid));
+    writer.newLine();
+    writer.flush();
+
+}
+    private void submitRequest() throws IOException, SQLException {
+        writer.write(libraryManager.viewAllBooks());
+        writer.newLine();
+        writer.flush();
+        int bookId = Integer.valueOf(reader.readLine());
+        String status = libraryManager.insertRequest(bookId, userid, "pending");
+        writer.write(status);
+        writer.newLine();
+        writer.flush();
+    }
+    private void deleteBook() throws SQLException, IOException {
+        writer.write(libraryManager.selectBookByOwner(userid));
+        writer.newLine();
+        writer.flush();
+        int bookId = Integer.valueOf(reader.readLine());
+        String status = libraryManager.deleteBook(bookId);
+        writer.write(status);
+        writer.newLine();
+        writer.flush();
+    }
+    private void addBook() throws IOException, NumberFormatException, ClassNotFoundException, SQLException {
+        String[] bookDetails = reader.readLine().split(":");
+        String status = libraryManager.insertBook(bookDetails[0], bookDetails[1], bookDetails[2], Double.valueOf(bookDetails[3]), Integer.valueOf(bookDetails[4]), userid);
+        writer.write(status);
+        writer.newLine();
+        writer.flush();
     }
 
 }
