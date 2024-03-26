@@ -2,7 +2,7 @@ package org.bookstore;
 import java.net.Socket;
 import java.sql.SQLException;
 import java.util.ArrayList;
-
+import java.net.SocketException;
 import org.bookstore.datastore.LibraryManager;
 
 import java.io.BufferedReader;
@@ -10,7 +10,11 @@ import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.BufferedWriter;
 import java.io.IOException;
+import java.util.Map;
+import java.util.HashMap;
+
 public class ClientHandler implements Runnable {
+    private static Map<Integer, Socket> availableUsers= new HashMap<>();
     private Socket socket;
     private BufferedReader reader;
     private BufferedWriter writer;
@@ -42,9 +46,11 @@ public class ClientHandler implements Runnable {
             if(socket2 != null){
                 socket2.close();
             }
+            availableUsers.remove(userid);
         } catch (IOException e) {
             e.printStackTrace();
         }
+
     }
     public Boolean auth(String choice, BufferedWriter writer) throws IOException, SQLException{
         Boolean authenticated = false;
@@ -59,12 +65,16 @@ public class ClientHandler implements Runnable {
                 String Status = libraryManager.login(username, password);
                 if(Status.split(":")[0].equals("200")){
                     this.username = username;
-                    this.isadmin = Status.split(":")[1].split(";")[0].equals("ra");
+                    this.isadmin = Status.split(":")[1].split(";")[0].equals("na");
                     this.userid = Integer.valueOf(Status.split(";")[1]);
                     authenticated = true;
-                    System.out.println(username + "logged in correctly");
+                    System.out.println(Status);
+                    System.out.println(username + " logged in correctly");
+                    availableUsers.put(userid, socket);
+                    if(isadmin)
+                        System.out.println("Welcome Admin "+ username);
                 }
-                writer.write(Status);
+                writer.write(Status.split(";")[0]);
                 writer.newLine();
                 writer.flush();
             }
@@ -76,7 +86,7 @@ public class ClientHandler implements Runnable {
                 if(Status.split(":")[0].equals("200")){
                     this.username = username;
                     authenticated = true;
-                    System.out.println(username + "signed up correctly");
+                    System.out.println(username + " signed up correctly");
                 }
                 writer.write(Status);
                 writer.newLine();
@@ -101,7 +111,7 @@ public class ClientHandler implements Runnable {
                 String choice = reader.readLine();
                 if(!auth(choice, writer)){
                     continue;}
-                while(true){
+                while(socket.isConnected()){
                     choice = reader.readLine();
                     switch (choice) {
                         case "1":
@@ -147,39 +157,143 @@ public class ClientHandler implements Runnable {
                             respondToRequest();
                             break;
                         case "8":
+                            chat();
+                            break;
+                        case "9":
                             closeEverything(socket, reader, writer);
+                            break;
+                        case "10":
+                            if(isadmin)
+                                getStatistics();
+                            else
+                                writer.write("403");
                             break;
                     }
                 }
             }catch(IOException e){
-                e.printStackTrace();
+                System.out.println(username + " has left the server");
                 closeEverything(socket, reader, writer);
                 break;
             }catch(SQLException e){
                 e.printStackTrace();
-                closeEverything(socket, reader, writer);
                 break;
             }catch(NullPointerException e){
                 System.out.println(username + " has left the server");
+                closeEverything(socket, reader, writer);
             } catch (NumberFormatException e) {
-                // TODO Auto-generated catch block
                 e.printStackTrace();
+                break;
             } catch (ClassNotFoundException e) {
-                // TODO Auto-generated catch block
                 e.printStackTrace();
+                break;
             }
         }
     }
-private void respondToRequest() {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'respondToRequest'");
-    }
-private void browseRequests() throws IOException, SQLException {
-    writer.write(libraryManager.selectAllRequestsForOwnedBooks(userid));
-    writer.newLine();
-    writer.flush();
 
-}
+    private void chat() throws SQLException, IOException {
+        ArrayList<ArrayList<String>> results = libraryManager.selectAllAcceptedRequestsForOwnedBooks(userid);
+        ArrayList<ArrayList<String>> available = new ArrayList<>();
+        for(int i =0 ;i <results.size(); i++){
+            if(availableUsers.containsKey(Integer.valueOf(results.get(i).get(0))))
+                available.add(results.get(i));
+        }
+        for (Map.Entry<Integer, Socket> entry : availableUsers.entrySet())
+            System.out.println(entry.getKey() + ": " + entry.getValue());
+
+        ArrayList<String> result = new ArrayList<>();
+        for (int i = 0; i < available.size(); i++) {
+            result.add(String.join(":", available.get(i)));
+        }
+        writer.write(String.join("!", result));
+        writer.newLine();
+        writer.flush();
+
+        int id = Integer.valueOf(reader.readLine());
+
+
+        Socket targetSocket = availableUsers.get(id);
+        BufferedReader targetreader = new BufferedReader(new InputStreamReader(targetSocket.getInputStream()));
+        BufferedWriter targetwriter = new BufferedWriter(new OutputStreamWriter(targetSocket.getOutputStream()));
+        Thread listenForMessage = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                String messageFromtarget;
+                while(targetSocket.isConnected()){
+                    try {
+                        messageFromtarget = targetreader.readLine();
+                        writer.write(messageFromtarget);
+                        writer.newLine();
+                        writer.flush();
+                        if(messageFromtarget.equals("exit")){
+                            writer.write("the other user has left the chat");
+                            writer.newLine();
+                            writer.flush();
+                            closeEverything(targetSocket, targetreader, targetwriter);
+                            break;
+                        }
+                    } catch (IOException e) {
+                        closeEverything(targetSocket, targetreader, targetwriter);
+                    }
+                }
+            }
+        });
+        listenForMessage.start();
+        String messageFromServer;
+        while(socket.isConnected()){
+
+            messageFromServer = reader.readLine();
+            if(messageFromServer.equals("exit")){
+                if(targetwriter != null){
+                    targetwriter.write("the other user has left the chat");
+                    targetwriter.newLine();
+                    targetwriter.flush();
+                }
+                    break;
+            }
+            if(targetwriter != null){
+                targetwriter.write(messageFromServer);
+                targetwriter.newLine();
+                targetwriter.flush();
+            }
+            }
+
+    }
+    private void getStatistics() throws SQLException, IOException {
+        String result = libraryManager.getLibraryStatistics();
+        writer.write(result);
+        writer.newLine();
+        writer.flush();
+    }
+    private void respondToRequest() throws IOException, SQLException {
+        browsePendingRequests();
+        String id = reader.readLine();
+        String response = reader.readLine();
+        String status = "";
+        if(response.equals("1")){
+            status = libraryManager.acceptRequest(Integer.valueOf(id));
+        }
+        else if(response.equals("2")){
+            status = libraryManager.rejectRequest(Integer.valueOf(id));
+
+        }else{
+            status = "400";
+        }
+        writer.write(status);
+        writer.newLine();
+        writer.flush();
+    }
+    private void browseRequests() throws IOException, SQLException {
+        writer.write(libraryManager.selectAllRequestsForOwnedBooks(userid));
+        writer.newLine();
+        writer.flush();
+
+    }
+    private void browsePendingRequests() throws IOException, SQLException {
+        writer.write(libraryManager.selectAllPendingRequestsForOwnedBooks(userid));
+        writer.newLine();
+        writer.flush();
+
+    }
     private void submitRequest() throws IOException, SQLException {
         writer.write(libraryManager.viewAllBooks());
         writer.newLine();

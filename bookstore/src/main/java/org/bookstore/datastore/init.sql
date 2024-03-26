@@ -25,3 +25,9 @@ CREATE TABLE requests (
     FOREIGN KEY(book) REFERENCES books(id) ON DELETE CASCADE,
     FOREIGN KEY(requester) REFERENCES user(id) ON DELETE CASCADE
 );
+
+SELECT u.id, b.title, u.username
+            FROM requests r
+            INNER JOIN books b ON r.book = b.id
+            INNER JOIN user u ON u.id = r.requester
+            WHERE b.owner = ? AND r.status = 'accepted'

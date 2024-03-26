@@ -19,6 +19,7 @@ public class Client {
             reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             writer = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
             this.username = username;
+            this.isAdmin = false;
         } catch (IOException e) {
             closeEverything(socket, reader, writer);
         }
@@ -83,7 +84,7 @@ public class Client {
         }).start();
 
     }
-    public static void main(String[] args){
+    public static void main(String[] args) throws InterruptedException{
         Scanner scanner = new Scanner(System.in);
         System.out.print("Hello,\n1- Login\n2- Register\n3- Exit\n- ");
         String choice = scanner.nextLine();
@@ -93,16 +94,21 @@ public class Client {
             Socket socket = new Socket("localhost", 8081);
             Client client = new Client(socket, username);
             client.sendMessage(choice);
+
             switch (choice) {
                 case "1":
-                    System.out.println("Login");
+                System.out.println("Login");
                     System.out.println("Enter username: ");
                     username = scanner.nextLine();
                     System.out.println("Enter password: ");
                     password = scanner.nextLine();
                     client.sendMessage(username);
                     client.sendMessage(password);
-                    System.out.println(client.readMessage());
+                    String message = client.readMessage();
+                    client.isAdmin = message.split(":")[1].equals("na");
+                    System.out.println(message);
+                    System.out.println("smth");
+                    System.out.println(String.valueOf(client.isAdmin));
                     break;
                 case "2":
                     System.out.println("Sign Up");
@@ -115,10 +121,11 @@ public class Client {
                     client.sendMessage(username);
                     client.sendMessage(password);
                     client.sendMessage(name);
-                    String message = client.readMessage();
-                    if(message.split(":")[0].equals("200")){
+                    String mess = client.readMessage();
+                    if(mess.split(":")[0].equals("200")){
                         client.username = username;
-                        client.isAdmin = message.split(":")[1].equals("a");
+                    }else{
+                        System.out.println("Error: " + mess);
                     }
                     break;
                 default:
@@ -127,7 +134,9 @@ public class Client {
             }
             System.out.println("Hello, " + username + "!");
             while(true){
-                System.out.print("Welcome to the menu:\n1- browse books\n2- search books\n3- add book\n4- delete book\n5- browse requests\n6- Submit a request\n7- respond to requests\n8- exit\n- ");
+                System.out.print("Welcome to the menu:\n1- browse books\n2- search books\n3- add book\n4- delete book\n5- browse requests\n6- Submit a request\n7- respond to requests\n8- show available chats\n9- exit\n- ");
+                if(client.isAdmin)
+                    System.out.println("Secret Admin MENU\n10- show statistics\n- ");
                 choice = scanner.nextLine();
                 client.sendMessage(choice);
                 switch (choice) {
@@ -153,19 +162,58 @@ public class Client {
                         client.respondToRequest(client, scanner);
                         break;
                     case "8":
+                        client.chat(client, scanner);
+                        break;
+                    case "9":
                         System.exit(0);
-                }
 
+                    case "10":
+                        if(client.isAdmin)
+                            client.getStatistics(client.readMessage());
+                        else
+                            System.out.println("YOU ARE NOT AUTHORIZED TO DO THIS METHOD MAN");
+                        break;
+
+                }
+                Thread.sleep(2);
             }
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    private void chat(Client client, Scanner scanner) throws IOException {
+        String idc = client.readMessage();
+        String[] ids = idc.split("!");
+        String[][] availableUsers = new String[ids.length][3];
+        for(int i =0 ;i < ids.length;i++){
+            availableUsers[i] = ids[i].split(":");
+        }
+        for(int i = 0 ;i < availableUsers.length;i++){
+            System.out.println(availableUsers[i][0] + "- " + availableUsers[i][1] + " " + availableUsers[i][2]);
+        }
+        System.out.print("Enter the id of the user you want to chat with: ");
+        int id = Integer.valueOf(scanner.nextLine());
+        client.sendMessage(String.valueOf(id));
+        client.listenForMessage();
+
+    }
+    private void getStatistics(String message) {
+        String[] stats = message.split(":");
+        System.out.println("Borrowed Books: " + stats[0] + "\n");
+        System.out.println("Available Books: " + stats[1] + "\n");
+        System.out.println("Accepted Requests: " + stats[2] + "\n");
+        System.out.println("Rejected Requests: " + stats[3] + "\n");
+        System.out.println("Pending Requests: " + stats[4] + "\n");
     }
     private void respondToRequest(Client client, Scanner scanner) throws IOException {
         browseRequests(client);
         System.out.print("Enter the id of the request: ");
         int id = Integer.valueOf(scanner.nextLine());
         client.sendMessage(String.valueOf(id));
+        System.out.println("Response:\n1- accept\n2- reject\n3- cancel\n-");
+        String response = scanner.nextLine();
+        client.sendMessage(response);
         String status = client.readMessage();
         if(status.equals("200")){
             System.out.println("Request responded successfully!\n");
