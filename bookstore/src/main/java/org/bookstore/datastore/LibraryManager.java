@@ -5,6 +5,7 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.SQLIntegrityConstraintViolationException;
 import java.sql.Statement;
 import java.util.ArrayList;
 
@@ -141,8 +142,11 @@ public class LibraryManager {
 
             int id = statement.executeUpdate();
             return "200:n" + ";" + id;
-        } catch (Exception e) {
+        } catch (org.sqlite.SQLiteException e) {
             return "400:n";
+        } catch (Exception e) {
+            e.printStackTrace();
+            return "500:n";
         }
     }
 
@@ -522,23 +526,19 @@ public class LibraryManager {
     }
 
     public ArrayList<ArrayList<String>> selectAllAcceptedRequestsForOwnedBooks(int userid) throws SQLException {
-        String sql = "SELECT u.id, b.title, u.username " +
-            "FROM requests r " +
-            "INNER JOIN books b ON r.book = b.id " +
-            "INNER JOIN user u ON u.id = r.requester " +
-            "WHERE (b.owner = ? OR r.requester = ?) AND r.status = 'accepted'";
+        String sql = "SELECT u.username, u.id from user u INNER JOIN requests r Where r.status == 'accepted'";
 
         try (Connection connection = DriverManager.getConnection(DB_URL);
                 PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setInt(1, userid);
-            statement.setInt(2, userid);
+    
+
             ResultSet resultSet = statement.executeQuery();
 
             ArrayList<ArrayList<String>> requests = new ArrayList<>();
             int j = 0;
             while (resultSet.next()) {
                 requests.add(new ArrayList<String>());
-                for (int i = 1; i <= 3; i++) {
+                for (int i = 1; i <= 2; i++) {
                     requests.get(j).add(resultSet.getString(i));
                     System.out.print(resultSet.getString(i) + " ");
                 }

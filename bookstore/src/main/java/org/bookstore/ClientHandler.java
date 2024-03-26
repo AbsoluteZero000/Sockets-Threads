@@ -2,9 +2,7 @@ package org.bookstore;
 import java.net.Socket;
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.net.SocketException;
 import org.bookstore.datastore.LibraryManager;
-
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
@@ -14,7 +12,7 @@ import java.util.Map;
 import java.util.HashMap;
 
 public class ClientHandler implements Runnable {
-    private static Map<Integer, Socket> availableUsers= new HashMap<>();
+    private static Map<Integer, Socket> availableUsers = new HashMap<>();
     private Socket socket;
     private BufferedReader reader;
     private BufferedWriter writer;
@@ -35,7 +33,6 @@ public class ClientHandler implements Runnable {
         }
     }
     private void closeEverything(Socket socket2, BufferedReader reader2, BufferedWriter writer2) {
-
         try {
             if(reader2 != null){
                 reader2.close();
@@ -50,7 +47,6 @@ public class ClientHandler implements Runnable {
         } catch (IOException e) {
             e.printStackTrace();
         }
-
     }
     public Boolean auth(String choice, BufferedWriter writer) throws IOException, SQLException{
         Boolean authenticated = false;
@@ -86,6 +82,7 @@ public class ClientHandler implements Runnable {
                 if(Status.split(":")[0].equals("200")){
                     this.username = username;
                     authenticated = true;
+                    this.userid = Integer.valueOf(Status.split(";")[1]);
                     System.out.println(username + " signed up correctly");
                 }
                 writer.write(Status);
@@ -187,7 +184,6 @@ public class ClientHandler implements Runnable {
                 e.printStackTrace();
                 break;
             } catch (InterruptedException e) {
-                // TODO Auto-generated catch block
                 e.printStackTrace();
             }
         }
@@ -196,12 +192,16 @@ public class ClientHandler implements Runnable {
     private void chat() throws SQLException, IOException, InterruptedException {
         ArrayList<ArrayList<String>> results = libraryManager.selectAllAcceptedRequestsForOwnedBooks(userid);
         ArrayList<ArrayList<String>> available = new ArrayList<>();
+        if(results.size() == 0){
+            writer.write("404");
+            writer.newLine();
+            writer.flush();
+            return;
+        }
         for(int i =0 ;i <results.size(); i++){
             if(availableUsers.containsKey(Integer.valueOf(results.get(i).get(0))) || Integer.valueOf(results.get(i).get(0)) != userid)
                 available.add(results.get(i));
         }
-        for (Map.Entry<Integer, Socket> entry : availableUsers.entrySet())
-            System.out.println(entry.getKey() + ": " + entry.getValue());
 
         ArrayList<String> result = new ArrayList<>();
         for (int i = 0; i < available.size(); i++) {
@@ -215,32 +215,8 @@ public class ClientHandler implements Runnable {
 
         Thread.sleep(3);
         Socket targetSocket = availableUsers.get(id);
-        BufferedReader targetreader = new BufferedReader(new InputStreamReader(targetSocket.getInputStream()));
         BufferedWriter targetwriter = new BufferedWriter(new OutputStreamWriter(targetSocket.getOutputStream()));
-        Thread listenForMessage = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                String messageFromtarget;
-                while(targetSocket.isConnected()){
-                    try {
-                        messageFromtarget = targetreader.readLine();
-                        writer.write(messageFromtarget);
-                        writer.newLine();
-                        writer.flush();
-                        if(messageFromtarget.equals("exit")){
-                            writer.write("the other user has left the chat");
-                            writer.newLine();
-                            writer.flush();
-                            closeEverything(targetSocket, targetreader, targetwriter);
-                            break;
-                        }
-                    } catch (IOException e) {
-                        closeEverything(targetSocket, targetreader, targetwriter);
-                    }
-                }
-            }
-        });
-        listenForMessage.start();
+
         String messageFromServer;
         while(socket.isConnected()){
 
@@ -254,11 +230,11 @@ public class ClientHandler implements Runnable {
                     break;
             }
             if(targetwriter != null){
-                targetwriter.write(messageFromServer);
+                targetwriter.write(username + ": " + messageFromServer);
                 targetwriter.newLine();
                 targetwriter.flush();
             }
-            }
+        }
 
     }
     private void getStatistics() throws SQLException, IOException {
@@ -277,7 +253,6 @@ public class ClientHandler implements Runnable {
         }
         else if(response.equals("2")){
             status = libraryManager.rejectRequest(Integer.valueOf(id));
-
         }else{
             status = "400";
         }
@@ -324,5 +299,4 @@ public class ClientHandler implements Runnable {
         writer.newLine();
         writer.flush();
     }
-
 }

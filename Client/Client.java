@@ -94,43 +94,59 @@ public class Client {
             Socket socket = new Socket("localhost", 8081);
             Client client = new Client(socket, username);
             client.sendMessage(choice);
+            Boolean isTrue = true;
+            while(isTrue){
 
-            switch (choice) {
-                case "1":
-                System.out.println("Login");
-                    System.out.println("Enter username: ");
-                    username = scanner.nextLine();
-                    System.out.println("Enter password: ");
-                    password = scanner.nextLine();
-                    client.sendMessage(username);
-                    client.sendMessage(password);
-                    String message = client.readMessage();
-                    client.isAdmin = message.split(":")[1].equals("na");
-                    System.out.println(message);
-                    System.out.println("smth");
-                    System.out.println(String.valueOf(client.isAdmin));
-                    break;
-                case "2":
-                    System.out.println("Sign Up");
-                    System.out.println("Enter username: ");
-                    username = scanner.nextLine();
-                    System.out.println("Enter password: ");
-                    password = scanner.nextLine();
-                    System.out.println("Enter name: ");
-                    name = scanner.nextLine();
-                    client.sendMessage(username);
-                    client.sendMessage(password);
-                    client.sendMessage(name);
-                    String mess = client.readMessage();
-                    if(mess.split(":")[0].equals("200")){
-                        client.username = username;
-                    }else{
-                        System.out.println("Error: " + mess);
-                    }
-                    break;
-                default:
-                    System.exit(0);
-                    break;
+                switch (choice) {
+                    case "1":
+                        System.out.println("Login");
+                        System.out.println("Enter username: ");
+                        username = scanner.nextLine();
+                        System.out.println("Enter password: ");
+                        password = scanner.nextLine();
+                        client.sendMessage(username);
+                        client.sendMessage(password);
+                        String message = client.readMessage();
+                        if(message.split(":")[0].equals("200")){
+                            client.username = username;
+                            client.isAdmin = message.split(":")[1].equals("na");
+                            isTrue = false;
+                        }else if(message.split(":")[0].equals("401")){
+                            System.out.println("Error: " + message.split(":")[0] + "\npassword is wrong please try again");
+
+                        }else if(message.split(":")[0].equals("404")){
+                            System.out.println("Error: " + message.split(":")[0] + "\nUser doesn't exist");
+                        }else{
+                            System.out.println("Error: " + message.split(":")[0] + "\nInternal Server Error");
+                        }
+                        break;
+                    case "2":
+                        System.out.println("Sign Up");
+                        System.out.println("Enter username: ");
+                        username = scanner.nextLine();
+                        System.out.println("Enter password: ");
+                        password = scanner.nextLine();
+                        System.out.println("Enter name: ");
+                        name = scanner.nextLine();
+                        client.sendMessage(username);
+                        client.sendMessage(password);
+                        client.sendMessage(name);
+                        String mess = client.readMessage();
+                        if(mess.split(":")[0].equals("200")){
+                            isTrue = false;
+                            client.username = username;
+                        }else if(mess.split(":")[0].equals("400")){
+                            System.out.println("Error: " + mess.split(":")[0]);
+                            System.out.println("Username is already taken");
+                        }else{
+                            System.out.println("Error: " + mess.split(":")[0]);
+                            System.out.println("Internal Server Error");
+                        }
+                        break;
+                    default:
+                        System.exit(0);
+                        break;
+                }
             }
             System.out.println("Hello, " + username + "!");
             while(true){
@@ -184,21 +200,28 @@ public class Client {
 
     private void chat(Client client, Scanner scanner) throws IOException, InterruptedException {
         String idc = client.readMessage();
-        String[] ids = idc.split("!");
-        String[][] availableUsers = new String[ids.length][3];
-        for(int i =0 ;i < ids.length;i++){
-            availableUsers[i] = ids[i].split(":");
+        if(idc.equals("404")){
+            System.out.println("No available chats!");
+
         }
-        for(int i = 0 ;i < availableUsers.length;i++){
-            System.out.println(availableUsers[i][0] + "- " + availableUsers[i][1] + " " + availableUsers[i][2]);
+        else{
+            String[] ids = idc.split("!");
+
+            System.out.println("Available Chats: ");
+            String[][] availableUsers = new String[ids.length][2];
+            for(int i =0 ;i < ids.length;i++){
+                availableUsers[i] = ids[i].split(":");
+            }
+            for(int i = 0 ;i < availableUsers.length;i++){
+                System.out.println(availableUsers[i][0] + "- " + availableUsers[i][1]);
+            }
+            System.out.print("Enter the id of the user you want to chat with: ");
         }
-        System.out.print("Enter the id of the user you want to chat with: ");
         int id = Integer.valueOf(scanner.nextLine());
         client.sendMessage(String.valueOf(id));
         Thread listening = client.listenForMessage();
         listening.start();
         while(true){
-            System.out.print(":");
             String message = scanner.nextLine();
             client.sendMessage(message);
             if(message.equals("exit")){
