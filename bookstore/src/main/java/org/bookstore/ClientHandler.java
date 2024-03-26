@@ -186,15 +186,18 @@ public class ClientHandler implements Runnable {
             } catch (ClassNotFoundException e) {
                 e.printStackTrace();
                 break;
+            } catch (InterruptedException e) {
+                // TODO Auto-generated catch block
+                e.printStackTrace();
             }
         }
     }
 
-    private void chat() throws SQLException, IOException {
+    private void chat() throws SQLException, IOException, InterruptedException {
         ArrayList<ArrayList<String>> results = libraryManager.selectAllAcceptedRequestsForOwnedBooks(userid);
         ArrayList<ArrayList<String>> available = new ArrayList<>();
         for(int i =0 ;i <results.size(); i++){
-            if(availableUsers.containsKey(Integer.valueOf(results.get(i).get(0))))
+            if(availableUsers.containsKey(Integer.valueOf(results.get(i).get(0))) || Integer.valueOf(results.get(i).get(0)) != userid)
                 available.add(results.get(i));
         }
         for (Map.Entry<Integer, Socket> entry : availableUsers.entrySet())
@@ -210,7 +213,7 @@ public class ClientHandler implements Runnable {
 
         int id = Integer.valueOf(reader.readLine());
 
-
+        Thread.sleep(3);
         Socket targetSocket = availableUsers.get(id);
         BufferedReader targetreader = new BufferedReader(new InputStreamReader(targetSocket.getInputStream()));
         BufferedWriter targetwriter = new BufferedWriter(new OutputStreamWriter(targetSocket.getOutputStream()));

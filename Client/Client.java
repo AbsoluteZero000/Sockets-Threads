@@ -67,8 +67,8 @@ public class Client {
             closeEverything(socket, reader, writer);
         }
     }
-    public void listenForMessage(){
-        new Thread(new Runnable() {
+    public Thread listenForMessage(){
+        return new Thread(new Runnable() {
             @Override
             public void run() {
                 String messageFromServer;
@@ -81,7 +81,7 @@ public class Client {
                     }
                 }
             }
-        }).start();
+        });
 
     }
     public static void main(String[] args) throws InterruptedException{
@@ -182,7 +182,7 @@ public class Client {
         }
     }
 
-    private void chat(Client client, Scanner scanner) throws IOException {
+    private void chat(Client client, Scanner scanner) throws IOException, InterruptedException {
         String idc = client.readMessage();
         String[] ids = idc.split("!");
         String[][] availableUsers = new String[ids.length][3];
@@ -195,7 +195,18 @@ public class Client {
         System.out.print("Enter the id of the user you want to chat with: ");
         int id = Integer.valueOf(scanner.nextLine());
         client.sendMessage(String.valueOf(id));
-        client.listenForMessage();
+        Thread listening = client.listenForMessage();
+        listening.start();
+        while(true){
+            System.out.print(":");
+            String message = scanner.nextLine();
+            client.sendMessage(message);
+            if(message.equals("exit")){
+                listening.join();
+                closeEverything(client.socket, client.reader, client.writer);
+                break;
+            }
+        }
 
     }
     private void getStatistics(String message) {
